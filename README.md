@@ -14,7 +14,7 @@ sample `.env` file content:
 ```
 MAPBOX_TOKEN={YOUR KEY}
 imageKEY={YOUR KEY}
-
+NEWRELIC_INSERT_KEY={YOUR KEY}
 ```
 
 2. initialise mongodb
