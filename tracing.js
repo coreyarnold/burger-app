@@ -1,30 +1,48 @@
 'use strict'
-
-const { LogLevel } = require('@opentelemetry/core')
+ 
+const api = require("@opentelemetry/api")
 const { NodeTracerProvider } = require('@opentelemetry/node')
-const { SimpleSpanProcessor } = require('@opentelemetry/tracing')
+const { BatchSpanProcessor } = require('@opentelemetry/tracing')
 const { ZipkinExporter } = require('@opentelemetry/exporter-zipkin')
-const { registerInstrumentations } = require('@opentelemetry/instrumentation')
+const { Resource, SERVICE_RESOURCE } = require('@opentelemetry/resources')
+const os = require('os')
+ 
+const SERVICE_NAME = 'burger-app'
+const NR_TRACE_API_URL = 'https://trace-api.newrelic.com/trace/v1'
+const NR_API_KEY = process.env.NEWRELIC_INSERT_KEY
 
-const provider = new NodeTracerProvider({
-  logLevel: LogLevel.ERROR
+const NR_ZIPKIN_HEADERS = {
+ 'X-License-Key': NR_API_KEY,
+ 'Data-Format': 'zipkin',
+ 'Data-Format-Version': '2',
+}
+ 
+const identifier = os.hostname()
+const instanceResource = new Resource({
+ [SERVICE_RESOURCE.INSTANCE_ID]: identifier,
+ [SERVICE_RESOURCE.NAME]: SERVICE_NAME
 })
-
-registerInstrumentations({
-  tracerProvider: provider
+ 
+const mergedResource = Resource.createTelemetrySDKResource().merge(instanceResource)
+ 
+const traceProvider = new NodeTracerProvider({
+ resource: mergedResource
 })
-
-provider.register()
-
-provider.addSpanProcessor(
-  new SimpleSpanProcessor(
-    new ZipkinExporter({
-      serviceName: 'router'
-      // If you are running your tracing backend on another host,
-      // you can point to it using the `url` parameter of the
-      // exporter config.
-    })
-  )
+ 
+traceProvider.addSpanProcessor(
+ new BatchSpanProcessor(
+   new ZipkinExporter({
+     url: NR_TRACE_API_URL,
+     headers: NR_ZIPKIN_HEADERS,
+     logger: { debug: (...args) => console.log(...args) },
+     statusCodeTagName: 'otel.status_code',
+     statusDescriptionTagName: 'otel.status_description'
+   })
+ )
 )
-
-console.log('tracing initialized')
+ 
+traceProvider.register()
+ 
+const tracer = api.trace.getTracer('custom stuff')
+ 
+module.exports = tracer
